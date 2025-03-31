@@ -6,6 +6,7 @@ import com.anon.anonrpc.model.RpcRequest;
 import com.anon.anonrpc.model.RpcResponse;
 import com.anon.anonrpc.serializer.JdkSerializer;
 import com.anon.anonrpc.serializer.Serializer;
+import com.anon.anonrpc.registry.ServiceRegistry;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
@@ -24,9 +25,8 @@ public class ServiceProxy implements InvocationHandler {
      */
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        // 从系统属性中获取服务地址和端口，如果没有设置则使用默认值
-        String serverAddress = System.getProperty("rpc.server.address", "localhost");
-        String serverPort = System.getProperty("rpc.server.port", "8080");
+        // 从服务注册中心获取下一个服务实例
+        String serviceUrl = ServiceRegistry.getNextServiceUrl();
         
         // 指定序列化器
         Serializer serializer = new JdkSerializer();
@@ -41,8 +41,6 @@ public class ServiceProxy implements InvocationHandler {
             // 序列化
             byte[] bodyBytes = serializer.serialize(rpcRequest);
             
-            // 构建完整的服务URL
-            String serviceUrl = "http://" + serverAddress + ":" + serverPort;
             System.out.println("正在连接RPC服务：" + serviceUrl);
             
             // 发送请求

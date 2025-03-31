@@ -10,13 +10,21 @@ public class ServiceRegistry {
 
     // 注册服务
     public static void register(String serviceUrl) {
-        serviceUrls.add(serviceUrl);
+        if (!serviceUrls.contains(serviceUrl)) {
+            serviceUrls.add(serviceUrl);
+            System.out.println("服务注册成功: " + serviceUrl);
+        }
     }
 
     // 获取下一个服务实例（轮询）
     public static String getNextServiceUrl() {
         if (serviceUrls.isEmpty()) {
-            throw new RuntimeException("没有可用的服务实例");
+            // 从系统属性构建默认URL
+            String host = System.getProperty("rpc.server.address", "localhost");
+            String port = System.getProperty("rpc.server.port", "8080");
+            String defaultUrl = "http://" + host + ":" + port;
+            register(defaultUrl);
+            System.out.println("没有注册的服务，使用默认URL: " + defaultUrl);
         }
         int currentIndex = index.getAndUpdate(i -> (i + 1) % serviceUrls.size());
         return serviceUrls.get(currentIndex);

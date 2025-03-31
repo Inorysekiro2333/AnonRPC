@@ -25,9 +25,9 @@ public class HttpServerHandler implements Handler<HttpServerRequest> {
     public void handle(HttpServerRequest request) {
         // 检查是否是浏览器直接访问
         if (request.method() == io.vertx.core.http.HttpMethod.GET) {
-            // 返回友好的HTML页面
+            // 返回友好的HTML页面，指定UTF-8编码
             request.response()
-                   .putHeader("content-type", "text/html")
+                   .putHeader("content-type", "text/html; charset=UTF-8")
                    .end("<html><body>" +
                         "<h1>RPC服务器正在运行</h1>" +
                         "<p>这是一个RPC服务端点，不支持直接浏览器访问。</p>" +

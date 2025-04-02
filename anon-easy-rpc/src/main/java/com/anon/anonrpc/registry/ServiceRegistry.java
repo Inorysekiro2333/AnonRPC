@@ -40,35 +40,41 @@ public class ServiceRegistry {
             serviceType = "default";
         }
         
-        // 先检查服务是否已存在（快速路径）
-        List<String> serviceList = SERVICE_MAP.get(serviceType);
-        if (serviceList != null && serviceList.contains(serviceUrl)) {
-            return; // 服务已存在，直接返回
+        // 提前检查是否已经包含，避免获取锁
+        List<String> existingList = SERVICE_MAP.get(serviceType);
+        if (existingList != null && existingList.contains(serviceUrl)) {
+            return; // 快速路径返回
         }
         
-        // 获取该服务类型的锁对象，如果不存在则创建
-        Object serviceLock = SERVICE_LOCKS.computeIfAbsent(serviceType, k -> new Object());
-        
-        // 在锁内部再次检查（双重校验）
-        synchronized (serviceLock) {
-            serviceList = SERVICE_MAP.get(serviceType);
+        // 创建新列表的情况 - 使用putIfAbsent优化
+        if (existingList == null) {
+            List<String> newList = new ArrayList<>();
+            newList.add(serviceUrl);
+            List<String> oldList = SERVICE_MAP.putIfAbsent(serviceType, newList);
             
-            if (serviceList == null) {
-                // 创建新的服务列表
-                serviceList = new ArrayList<>();
-                serviceList.add(serviceUrl);
-                SERVICE_MAP.put(serviceType, serviceList);
-                INDEX_MAP.put(serviceType, new AtomicInteger(0));
-            } else if (!serviceList.contains(serviceUrl)) {
-                // 添加到现有列表
-                serviceList.add(serviceUrl);
+            if (oldList != null) {
+                // 如果同时有其他线程创建了列表，使用细粒度锁添加到已存在的列表
+                Object serviceLock = SERVICE_LOCKS.computeIfAbsent(serviceType, k -> new Object());
+                synchronized (serviceLock) {
+                    if (!oldList.contains(serviceUrl)) {
+                        oldList.add(serviceUrl);
+                    }
+                }
             } else {
-                // 已存在，不需操作
-                return;
+                // 成功添加了新列表，还需创建计数器
+                INDEX_MAP.putIfAbsent(serviceType, new AtomicInteger(0));
+            }
+        } else {
+            // 只在必要时获取锁
+            Object serviceLock = SERVICE_LOCKS.computeIfAbsent(serviceType, k -> new Object());
+            synchronized (serviceLock) {
+                if (!existingList.contains(serviceUrl)) {
+                    existingList.add(serviceUrl);
+                }
             }
         }
         
-        // 记录性能数据
+        // 递增计数器和记录性能（无需锁定）
         long current = ++totalRegistrations;
         long now = System.currentTimeMillis();
         double timeRunning = (now - startTime) / 1000.0;
